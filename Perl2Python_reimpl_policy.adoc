@@ -1,0 +1,67 @@
+= SVUnit Python Reimplementation Policy
+Date: 2025-12-27
+
+== 1. Objective
+The goal is to reimplement the existing Perl-based SVUnit scripts (`runSVUnit`, `buildSVUnit`, etc.) using Python 3. This refactoring aims to improve stability, debuggability, and maintainability of the verification framework.
+
+== 2. Analysis of Existing Implementation
+The current SVUnit workflow relies on a chain of Perl scripts:
+*   **`runSVUnit`**: The main entry point. Handles argument parsing, simulator selection, and orchestration.
+*   **`buildSVUnit`**: Handles test discovery and invokes code generation scripts.
+*   **`create_testsuite.pl` / `create_testrunner.pl`**: Generate SystemVerilog scaffolding code.
+
+**Identified Issues:**
+*   **Fragility:** Regex-based parsing of SystemVerilog files is prone to errors with complex code.
+*   **Complexity:** `runSVUnit` contains monolithic `if/else` logic for supporting various simulators, making it hard to extend.
+*   **Debuggability:** Poor handling of system calls results in opaque error messages (e.g., "Error 255").
+
+== 3. Reimplementation Policy
+
+=== 3.1. Technology Stack
+*   **Language:** Python 3 (Standard Library only preferred for core functionality).
+*   **Key Libraries:**
+    *   `argparse`: For robust command-line argument parsing.
+    *   `pathlib`: For cross-platform file system operations.
+    *   `subprocess`: For secure and controllable execution of external commands.
+    *   `re`: For parsing SystemVerilog files.
+    *   `setuptools`: For package management (`setup.py`).
+
+=== 3.2. Architecture
+The new implementation will be organized as a Python package.
+
+*   **Directory Structure**:
+    *   `bin/runSVUnit.py`: The main executable script.
+    *   `bin/svunit/`: The Python package containing the implementation modules.
+    *   `setup.py`: Installation script located at the workspace root.
+
+*   **Modules**:
+    *   **`svunit.main`**: Replaces `runSVUnit` logic.
+    *   **`svunit.discovery`**: Replaces `buildSVUnit`. Scans directories for `*_unit_test.sv` files.
+    *   **`svunit.codegen`**: Replaces `create_testsuite.pl` and `create_testrunner.pl`. Generates SystemVerilog code.
+    *   **`svunit.simulators`**: Abstracts simulator-specific logic (ModelSim, Xcelium, VCS, Verilator, etc.).
+
+=== 3.3. Key Requirements
+
+==== 3.3.1. Backward Compatibility
+*   **Strict Adherence:** The Python implementation must support **all** existing command-line arguments of `runSVUnit` (e.g., `-s`, `-U`, `-f`, `--filter`, `-r`, `-c`, `-e`, etc.) to ensure it is a drop-in replacement.
+
+==== 3.3.2. Code Generation
+*   **Method:** Use Python's standard string formatting (f-strings, `str.format`, multiline strings).
+*   **Constraint:** Do **not** use external template engines like `jinja2` for the initial implementation.
+
+==== 3.3.3. Error Handling
+*   Replace generic exit codes with descriptive error messages.
+*   Capture and log `stdout`/`stderr` from subprocesses effectively.
+
+==== 3.3.4. Packaging and Deployment
+*   **Installation:** Create `setup.py` to allow installing the package.
+*   **Coexistence:** Keep existing Perl scripts in the repository. Do not delete them.
+*   **Entry Point:** The main script will be `bin/runSVUnit.py`.
+
+== 4. Migration Plan
+1.  **Structure Setup:** Create `bin/svunit/` directory, `bin/runSVUnit.py`, and `setup.py`.
+2.  **Discovery Logic:** Implement test discovery logic in `svunit.discovery`.
+3.  **Code Generation:** Implement SystemVerilog code generation in `svunit.codegen`.
+4.  **Simulator Logic:** Implement simulator abstraction classes in `svunit.simulators`.
+5.  **Main CLI:** Implement `bin/runSVUnit.py` using `argparse` and the `svunit` package.
+6.  **Utilities:** Port `create_unit_test.pl` functionality (optional/later step).
